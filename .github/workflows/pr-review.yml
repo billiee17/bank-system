@@ -1,0 +1,45 @@
+name: PR Review (Checkstyle bot)
+
+# Tự động chạy khi mở, cập nhật (push thêm commit) hoặc mở lại một Pull Request hướng vào nhánh main
+on:
+  pull_request:
+    branches: ["main"]
+    types: [opened, synchronize, reopened]
+
+# Nếu có commit mới được push lên cùng PR, hủy lần review cũ đang chạy
+concurrency:
+  group: pr-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+# Quyền tối thiểu cần thiết:
+# - contents: read        để checkout mã nguồn
+# - pull-requests: write  để bot đăng bình luận review trên PR
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  checkstyle:
+    # Tên job cũng là tên "status check" dùng trong Branch Protection (phải khớp chính xác)
+    name: Checkstyle review
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Checkstyle inline review
+        uses: dbelyaev/action-checkstyle@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          # github-pr-review: đăng bình luận trực tiếp trên từng dòng code vi phạm
+          reporter: github-pr-review
+          # Mức báo cáo của reviewdog; bộ luật Google đặt mọi vi phạm ở mức warning
+          level: warning
+          # Chỉ bình luận trên những dòng được thêm hoặc sửa trong PR này
+          filter_mode: added
+          # Job thất bại nếu có bất kỳ vi phạm nào, để Branch Protection khóa nút Merge
+          fail_level: any
+          # Dùng cùng phiên bản Checkstyle với maven-checkstyle-plugin trong pom.xml
+          checkstyle_config: google_checks.xml
+          checkstyle_version: "10.12.4"

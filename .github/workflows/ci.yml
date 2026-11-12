@@ -1,4 +1,4 @@
-name: Java CI with Maven (Matrix + JaCoCo)
+name: Java CI with Maven (Matrix + JaCoCo + Cache)
 
 # Kích hoạt khi có push lên bất kỳ nhánh nào, hoặc khi mở/cập nhật pull request vào main
 on:
@@ -20,54 +20,98 @@ jobs:
 
     defaults:
       run:
-        # Ép dùng bash trên cả ba hệ điều hành để câu lệnh chạy giống nhau
+        # Ép dùng bash (có pipefail) trên cả ba hệ điều hành để câu lệnh chạy giống nhau
         shell: bash
 
     steps:
       - name: Checkout source
         uses: actions/checkout@v4
 
-      - name: Set up JDK 17
+      # cache: 'maven' lưu thư mục ~/.m2/repository vào GitHub Actions cache.
+      # Khóa cache (cache key) có dạng: setup-java-<OS>-<arch>-maven-<hash của mọi pom.xml>
+      # - Lần chạy đầu: không có cache (cache miss), Maven tải dependency từ Maven Central,
+      #   rồi bước "Post Set up JDK" lưu cache.
+      # - Các lần sau (pom.xml không đổi): khôi phục cache (cache hit), Maven không phải tải lại.
+      # - Sửa pom.xml thì hash đổi, khóa cache đổi, cache cũ không dùng được nữa.
+      - name: Set up JDK 17 (with Maven dependency cache)
+        id: setup-java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "17"
-          cache: maven
+          cache: 'maven'
 
       - name: Show environment
         run: |
           echo "Runner OS: ${{ runner.os }}"
+          echo "Cache hit: ${{ steps.setup-java.outputs.cache-hit }}"
           java -version
           mvn -version
 
+      # Mọi lệnh Maven ghi thêm vào một tệp log (tee) để cuối job đếm số artifact đã phải tải.
+      # Cố ý KHÔNG dùng -ntp (--no-transfer-progress) để các dòng "Downloading from ..." vẫn hiện trong log.
       # -B: chế độ batch (log gọn); -e: in stack trace khi có lỗi.
       - name: "Phase: validate (Checkstyle)"
-        run: mvn -B -e validate
+        run: mvn -B -e validate 2>&1 | tee -a "$RUNNER_TEMP/maven.log"
 
       - name: "Phase: compile"
-        run: mvn -B -e compile
+        run: mvn -B -e compile 2>&1 | tee -a "$RUNNER_TEMP/maven.log"
 
-      # verify gồm: test (JUnit + JaCoCo tạo báo cáo) -> package (tạo JAR) -> verify (JaCoCo check).
-      # Nếu độ bao phủ dòng dưới 80%, bước này THẤT BẠI và cả workflow thất bại.
+      # verify gồm: test (JUnit + JaCoCo tạo báo cáo) -> package (tạo JAR) -> verify (JaCoCo check)
       - name: "Phase: verify (test + package + JaCoCo coverage check)"
-        run: mvn -B -e verify
+        run: mvn -B -e verify 2>&1 | tee -a "$RUNNER_TEMP/maven.log"
+
+      - name: Show log file written by tests
+        if: always()
+        run: |
+          ls -l logs/ || true
+          tail -n 20 logs/bank-system.log || true
+
+      - name: Upload log file
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bank-system-log-${{ matrix.os }}
+          path: logs/bank-system.log
+          if-no-files-found: warn
+          retention-days: 7
 
       - name: Verify the JAR
         run: |
           ls -l target/*.jar
           echo "--- Nội dung JAR ---"
           jar tf target/bank-system-*.jar
+          echo "--- MANIFEST.MF ---"
+          unzip -p target/bank-system-*.jar META-INF/MANIFEST.MF
+
+      - name: Smoke test - java -jar
+        run: |
+          java -jar target/bank-system-*.jar
+          echo "Exit code: $?"
 
       - name: Upload JAR artifact
         uses: actions/upload-artifact@v4
         with:
           name: bank-system-jar-${{ matrix.os }}
-          path: target/*.jar
+          path: |
+            target/*.jar
+            target/lib/
           if-no-files-found: error
           retention-days: 7
 
-      # Các bước dưới đây dùng if: always() để chạy cả khi build thất bại do coverage thấp:
-      # lúc đó mới cần xem báo cáo để biết dòng nào chưa được test.
+      # Bằng chứng định lượng cho bài tối ưu: đếm số lần Maven phải tải artifact từ remote repository.
+      # Cache miss: nhiều dòng "Downloading from central"; cache hit: gần như bằng 0.
+      - name: Dependency download summary
+        if: always()
+        run: |
+          LOG="$RUNNER_TEMP/maven.log"
+          DOWNLOADS=$(grep -c "Downloading from" "$LOG" || true)
+          {
+            echo "### Maven dependency cache (${{ matrix.os }})"
+            echo "- Cache hit: ${{ steps.setup-java.outputs.cache-hit }}"
+            echo "- Số artifact tải từ remote repository: ${DOWNLOADS:-0}"
+          } | tee -a "$GITHUB_STEP_SUMMARY"
+
       - name: Coverage summary
         if: always()
         run: |

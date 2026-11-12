@@ -13,6 +13,9 @@
         <maven.compiler.release>${java.version}</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 
+        <!-- Lớp chính của ứng dụng, ghi vào Main-Class trong MANIFEST.MF -->
+        <app.main.class>com.practice.bank.Main</app.main.class>
+
         <slf4j.version>2.0.7</slf4j.version>
         <logback.version>1.4.11</logback.version>
         <junit.version>5.9.2</junit.version>
@@ -71,10 +74,36 @@
                 <configuration>
                     <archive>
                         <manifest>
+                            <!-- Main-Class: lớp chứa main(), JVM chạy lớp này khi dùng java -jar -->
+                            <mainClass>${app.main.class}</mainClass>
+                            <!-- Class-Path: ghi vào MANIFEST.MF danh sách thư viện (lib/xxx.jar) -->
+                            <addClasspath>true</addClasspath>
+                            <classpathPrefix>lib/</classpathPrefix>
                             <addDefaultImplementationEntries>true</addDefaultImplementationEntries>
                         </manifest>
                     </archive>
                 </configuration>
+            </plugin>
+
+            <!-- Chép các thư viện runtime (SLF4J, Logback) vào target/lib để JAR chạy độc lập.
+                 Chạy ở pha prepare-package, ngay trước khi jar:jar đóng gói -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-dependency-plugin</artifactId>
+                <version>3.6.0</version>
+                <executions>
+                    <execution>
+                        <id>copy-runtime-dependencies</id>
+                        <phase>prepare-package</phase>
+                        <goals>
+                            <goal>copy-dependencies</goal>
+                        </goals>
+                        <configuration>
+                            <outputDirectory>${project.build.directory}/lib</outputDirectory>
+                            <includeScope>runtime</includeScope>
+                        </configuration>
+                    </execution>
+                </executions>
             </plugin>
 
             <!-- JaCoCo (Bài 5): đo độ bao phủ, tạo báo cáo và ép ngưỡng tối thiểu 80% -->
