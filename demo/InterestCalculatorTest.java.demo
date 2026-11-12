@@ -1,0 +1,83 @@
+package com.practice.bank;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import java.util.List;
+import org.junit.jupiter.api.Test;
+
+/**
+ * Kiểm thử {@link InterestCalculator}: bổ sung để đưa độ bao phủ trở lại trên 80%.
+ */
+class InterestCalculatorTest {
+  private static final double DELTA = 1e-6;
+
+  @Test
+  void annualRateFollowsBalanceTiers() {
+    assertEquals(0.01, InterestCalculator.annualRateFor(500.0), DELTA);
+    assertEquals(0.02, InterestCalculator.annualRateFor(10_000.0), DELTA);
+    assertEquals(0.035, InterestCalculator.annualRateFor(100_000.0), DELTA);
+  }
+
+  @Test
+  void negativeBalanceIsRejected() {
+    assertThrows(IllegalArgumentException.class, () -> InterestCalculator.annualRateFor(-1.0));
+  }
+
+  @Test
+  void simpleInterestMultipliesPrincipalRateAndYears() {
+    assertEquals(300.0, InterestCalculator.simpleInterest(1000.0, 0.1, 3), DELTA);
+  }
+
+  @Test
+  void compoundInterestCompoundsEveryYear() {
+    assertEquals(210.0, InterestCalculator.compoundInterest(1000.0, 0.1, 2), DELTA);
+  }
+
+  @Test
+  void invalidArgumentsAreRejected() {
+    assertThrows(IllegalArgumentException.class,
+        () -> InterestCalculator.simpleInterest(-1.0, 0.1, 1));
+    assertThrows(IllegalArgumentException.class,
+        () -> InterestCalculator.simpleInterest(1.0, -0.1, 1));
+    assertThrows(IllegalArgumentException.class,
+        () -> InterestCalculator.compoundInterest(1.0, 0.1, -1));
+  }
+
+  @Test
+  void projectBalanceUsesTieredRate() {
+    assertEquals(1010.0, InterestCalculator.projectBalance(1000.0, 1), DELTA);
+  }
+
+  @Test
+  void scheduleHasOneLinePerYear() {
+    List<String> lines = InterestCalculator.schedule(1000.0, 3);
+
+    assertEquals(3, lines.size());
+  }
+
+  @Test
+  void earlyWithdrawalPenaltyDependsOnMonthsHeld() {
+    assertEquals(30.0, InterestCalculator.earlyWithdrawalPenalty(1000.0, 3), DELTA);
+    assertEquals(15.0, InterestCalculator.earlyWithdrawalPenalty(1000.0, 8), DELTA);
+    assertEquals(0.0, InterestCalculator.earlyWithdrawalPenalty(1000.0, 12), DELTA);
+    assertThrows(IllegalArgumentException.class,
+        () -> InterestCalculator.earlyWithdrawalPenalty(-1.0, 3));
+  }
+
+  @Test
+  void effectiveYieldIsAnnualisedGrowth() {
+    assertEquals(0.1, InterestCalculator.effectiveYield(1000.0, 1210.0, 2), DELTA);
+    assertEquals(0.0, InterestCalculator.effectiveYield(0.0, 100.0, 2), DELTA);
+    assertEquals(0.0, InterestCalculator.effectiveYield(1000.0, 1100.0, 0), DELTA);
+  }
+
+  @Test
+  void describeMentionsYearsAndTier() {
+    assertTrue(InterestCalculator.describe(1000.0, 2).contains("bậc thấp"));
+    assertTrue(InterestCalculator.describe(50_000.0, 2).contains("bậc giữa"));
+    assertTrue(InterestCalculator.describe(200_000.0, 2).contains("bậc cao"));
+    assertEquals("Không có lãi sau 0 năm", InterestCalculator.describe(1000.0, 0));
+  }
+}

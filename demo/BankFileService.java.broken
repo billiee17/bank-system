@@ -1,0 +1,84 @@
+package com.practice.bank;
+
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+/**
+ * BẢN LỖI (chỉ dùng để thử nghiệm): đường dẫn bị ghi cứng theo kiểu Windows.
+ *
+ * <p>Chạy đúng trên máy Windows của lập trình viên, nhưng sai trên Linux và macOS.
+ */
+public final class BankFileService {
+  private static final Logger LOGGER = LoggerFactory.getLogger(BankFileService.class);
+
+  private BankFileService() {
+    // Lớp tiện ích, không tạo đối tượng.
+  }
+
+  /**
+   * Ghép thư mục và tên tệp thành đường dẫn.
+   *
+   * @param directory thư mục chứa tệp
+   * @param fileName tên tệp
+   * @return đường dẫn đầy đủ
+   */
+  public static String buildPath(String directory, String fileName) {
+    return directory + "\\" + fileName;
+  }
+
+  /**
+   * Lấy tên tệp từ một đường dẫn.
+   *
+   * @param path đường dẫn tệp
+   * @return tên tệp
+   */
+  public static String getFileName(String path) {
+    return path.substring(path.lastIndexOf('\\') + 1);
+  }
+
+  /**
+   * Đọc danh sách khách hàng từ một tệp văn bản.
+   *
+   * @param directory thư mục chứa tệp
+   * @param fileName tên tệp
+   * @return ngân hàng chứa các khách hàng đã đọc
+   * @throws IOException nếu không mở hoặc không đọc được tệp
+   */
+  public static Bank loadBank(String directory, String fileName) throws IOException {
+    File file = new File(buildPath(directory, fileName));
+    LOGGER.info("Đọc dữ liệu khách hàng từ tệp {}", file);
+    Bank bank = new Bank();
+    try (InputStream inputStream = new FileInputStream(file)) {
+      bank.readCustomerList(inputStream);
+    }
+    return bank;
+  }
+
+  /**
+   * Ghi báo cáo thông tin khách hàng (sắp xếp theo CMND) ra tệp.
+   *
+   * @param bank ngân hàng cần lập báo cáo
+   * @param directory thư mục chứa tệp báo cáo
+   * @param fileName tên tệp báo cáo
+   * @return đường dẫn tới tệp báo cáo đã ghi
+   * @throws IOException nếu không ghi được tệp
+   */
+  public static Path writeReport(Bank bank, String directory, String fileName)
+      throws IOException {
+    File file = new File(buildPath(directory, fileName));
+    File parent = file.getParentFile();
+    if (parent != null) {
+      parent.mkdirs();
+    }
+    Files.writeString(file.toPath(), bank.getCustomersInfoByIdOrder(), StandardCharsets.UTF_8);
+    LOGGER.info("Đã ghi báo cáo khách hàng vào tệp {}", file);
+    return file.toPath();
+  }
+}

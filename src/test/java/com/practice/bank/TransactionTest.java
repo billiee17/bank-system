@@ -26,6 +26,22 @@ class TransactionTest {
   }
 
   @Test
+  void settersUpdateAllFields() {
+    Transaction transaction =
+        new Transaction(Transaction.TYPE_DEPOSIT_CHECKING, 1.0, 2.0, 3.0);
+
+    transaction.setType(Transaction.TYPE_WITHDRAW_SAVINGS);
+    transaction.setAmount(10.0);
+    transaction.setInitialBalance(20.0);
+    transaction.setFinalBalance(30.0);
+
+    assertEquals(Transaction.TYPE_WITHDRAW_SAVINGS, transaction.getType());
+    assertEquals(10.0, transaction.getAmount(), 1e-9);
+    assertEquals(20.0, transaction.getInitialBalance(), 1e-9);
+    assertEquals(30.0, transaction.getFinalBalance(), 1e-9);
+  }
+
+  @Test
   void summaryContainsTypeAndAmountsWithTwoDecimals() {
     Transaction transaction =
         new Transaction(Transaction.TYPE_DEPOSIT_CHECKING, 100.0, 50.0, 150.0);

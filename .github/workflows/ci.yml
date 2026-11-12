@@ -1,4 +1,4 @@
-name: Java CI with Maven
+name: Java CI with Maven (Matrix + JaCoCo)
 
 # Kích hoạt khi có push lên bất kỳ nhánh nào, hoặc khi mở/cập nhật pull request vào main
 on:
@@ -9,8 +9,19 @@ on:
 
 jobs:
   build:
-    name: Build, test and package
-    runs-on: ubuntu-latest
+    name: Build on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      # Không hủy các job còn lại khi một hệ điều hành thất bại
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+
+    defaults:
+      run:
+        # Ép dùng bash trên cả ba hệ điều hành để câu lệnh chạy giống nhau
+        shell: bash
 
     steps:
       - name: Checkout source
@@ -23,48 +34,68 @@ jobs:
           java-version: "17"
           cache: maven
 
-      - name: Show tool versions
+      - name: Show environment
         run: |
+          echo "Runner OS: ${{ runner.os }}"
           java -version
           mvn -version
 
-      # Các bước dưới đây chạy lần lượt từng pha của vòng đời build Maven.
-      # -B: chế độ batch (log gọn, không màu); -e: in stack trace khi có lỗi.
+      # -B: chế độ batch (log gọn); -e: in stack trace khi có lỗi.
       - name: "Phase: validate (Checkstyle)"
         run: mvn -B -e validate
 
       - name: "Phase: compile"
         run: mvn -B -e compile
 
-      - name: "Phase: test (JUnit 5)"
-        run: mvn -B -e test
-
-      # Test đã chạy ở bước trước, nên bỏ qua để không chạy lại lần hai
-      - name: "Phase: package"
-        run: mvn -B -e package -DskipTests
+      # verify gồm: test (JUnit + JaCoCo tạo báo cáo) -> package (tạo JAR) -> verify (JaCoCo check).
+      # Nếu độ bao phủ dòng dưới 80%, bước này THẤT BẠI và cả workflow thất bại.
+      - name: "Phase: verify (test + package + JaCoCo coverage check)"
+        run: mvn -B -e verify
 
       - name: Verify the JAR
         run: |
           ls -l target/*.jar
           echo "--- Nội dung JAR ---"
           jar tf target/bank-system-*.jar
-          echo "--- MANIFEST.MF ---"
-          unzip -p target/bank-system-*.jar META-INF/MANIFEST.MF
 
       - name: Upload JAR artifact
         uses: actions/upload-artifact@v4
         with:
-          name: bank-system-jar
+          name: bank-system-jar-${{ matrix.os }}
           path: target/*.jar
           if-no-files-found: error
           retention-days: 7
 
-      # Chỉ chạy khi một bước ở trên thất bại: lưu báo cáo để tải về phân tích
-      - name: Upload reports on failure
+      # Các bước dưới đây dùng if: always() để chạy cả khi build thất bại do coverage thấp:
+      # lúc đó mới cần xem báo cáo để biết dòng nào chưa được test.
+      - name: Coverage summary
+        if: always()
+        run: |
+          CSV=target/site/jacoco/jacoco.csv
+          if [ -f "$CSV" ]; then
+            awk -F, 'NR > 1 { missed += $8; covered += $9 }
+              END { printf "Line coverage (${{ matrix.os }}): %.2f%% (%d/%d lines)\n",
+                100 * covered / (missed + covered), covered, missed + covered }' "$CSV" \
+              | tee -a "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Không có báo cáo JaCoCo (build dừng trước pha test)."
+          fi
+
+      - name: Upload JaCoCo coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jacoco-report-${{ matrix.os }}
+          path: target/site/jacoco/
+          if-no-files-found: warn
+          retention-days: 14
+
+      # Chỉ chạy khi một bước ở trên thất bại: lưu báo cáo test và Checkstyle
+      - name: Upload test and Checkstyle reports on failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: failure-reports
+          name: failure-reports-${{ matrix.os }}
           path: |
             target/surefire-reports/
             target/checkstyle-result.xml

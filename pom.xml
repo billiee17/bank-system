@@ -16,6 +16,9 @@
         <slf4j.version>2.0.7</slf4j.version>
         <logback.version>1.4.11</logback.version>
         <junit.version>5.9.2</junit.version>
+        <jacoco.version>0.8.11</jacoco.version>
+        <!-- Ngưỡng bao phủ dòng tối thiểu: 80% -->
+        <jacoco.line.minimum>0.80</jacoco.line.minimum>
         <checkstyle.plugin.version>3.3.1</checkstyle.plugin.version>
         <checkstyle.version>10.12.4</checkstyle.version>
     </properties>
@@ -72,6 +75,55 @@
                         </manifest>
                     </archive>
                 </configuration>
+            </plugin>
+
+            <!-- JaCoCo (Bài 5): đo độ bao phủ, tạo báo cáo và ép ngưỡng tối thiểu 80% -->
+            <plugin>
+                <groupId>org.jacoco</groupId>
+                <artifactId>jacoco-maven-plugin</artifactId>
+                <version>${jacoco.version}</version>
+                <executions>
+                    <!-- 1. Gắn JaCoCo agent vào JVM chạy test (tạo target/jacoco.exec) -->
+                    <execution>
+                        <id>jacoco-prepare-agent</id>
+                        <goals>
+                            <goal>prepare-agent</goal>
+                        </goals>
+                    </execution>
+
+                    <!-- 2. Tạo báo cáo HTML ngay sau pha test: target/site/jacoco/index.html
+                         (gắn vào pha test để báo cáo vẫn có ngay cả khi bước check ở verify thất bại) -->
+                    <execution>
+                        <id>jacoco-report</id>
+                        <phase>test</phase>
+                        <goals>
+                            <goal>report</goal>
+                        </goals>
+                    </execution>
+
+                    <!-- 3. Quy tắc nghiêm ngặt ở pha verify: bao phủ dòng dưới 80% thì build FAIL -->
+                    <execution>
+                        <id>jacoco-check</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>check</goal>
+                        </goals>
+                        <configuration>
+                            <rules>
+                                <rule>
+                                    <element>BUNDLE</element>
+                                    <limits>
+                                        <limit>
+                                            <counter>LINE</counter>
+                                            <value>COVEREDRATIO</value>
+                                            <minimum>${jacoco.line.minimum}</minimum>
+                                        </limit>
+                                    </limits>
+                                </rule>
+                            </rules>
+                        </configuration>
+                    </execution>
+                </executions>
             </plugin>
 
             <!-- Checkstyle (Bài 2): Google Java Style, chạy ở pha validate -->
