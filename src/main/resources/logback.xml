@@ -1,0 +1,16 @@
+<configuration>
+  <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+    <encoder>
+      <charset>UTF-8</charset>
+      <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] %logger{20} - %msg%n</pattern>
+    </encoder>
+  </appender>
+
+  <!-- Mã nguồn của dự án: ghi từ DEBUG trở lên để theo dõi chi tiết -->
+  <logger name="com.practice.bank" level="DEBUG"/>
+
+  <!-- Mặc định cho thư viện bên ngoài: chỉ INFO trở lên -->
+  <root level="INFO">
+    <appender-ref ref="CONSOLE"/>
+  </root>
+</configuration>
