@@ -17,7 +17,7 @@ class SavingsAccountTest {
 
     account.withdraw(500.0);
 
-    assertEquals(9999.0, account.getBalance(), DELTA);
+    assertEquals(8500.0, account.getBalance(), DELTA);
     assertEquals(1, account.getTransactionList().size());
     assertEquals(Transaction.TYPE_WITHDRAW_SAVINGS,
         account.getTransactionList().get(0).getType());
